@@ -64,7 +64,6 @@ Item {
             // restrict the drawing area to the rounded rectangle path
             ctx.clip();
 
-            console.log(image.status);
             if(image.status === Image.Ready){
                 // draw the image inside the rounded rectangle, scaling it to fit
                 ctx.drawImage(image, x, y, rectWidth, rectHeight);
