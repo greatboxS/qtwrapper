@@ -1,0 +1,7 @@
+#ifndef __QTWRAPPER_H__
+#define __QTWRAPPER_H__
+
+#include "worker/QWorker.h"
+#include "mutexsafe/MutexSafe.h"
+
+#endif // __QTWRAPPER_H__
