@@ -10,7 +10,7 @@ QWorker::QWorker(const char *cWorkName, IWorker *iWorker, void *param, int prior
     m_pParam(param),
     m_workFunc(NULL),
     m_finalized(false),
-    QThread(){
+    QThread() {
     QMutexLocker locker(&m_stMtx);
 }
 
@@ -21,7 +21,7 @@ QWorker::QWorker(const char *cWorkName, QWorkerHandler fnc, void *param) :
     m_pParam(param),
     m_workFunc(fnc),
     m_finalized(false),
-    QThread(){
+    QThread() {
     QMutexLocker locker(&m_stMtx);
 }
 
@@ -37,7 +37,7 @@ int QWorker::IsTerminated() {
 }
 
 int QWorker::TerminateWorker(unsigned long wait) {
-    if(QThread::isRunning()){
+    if (QThread::isRunning()) {
         StopWorker();
         MtxSafeWrite(&m_stMtx, m_finalized, true);
         QThread::terminate();
@@ -47,7 +47,7 @@ int QWorker::TerminateWorker(unsigned long wait) {
 
 void QWorker::run() try {
 
-    while(m_finalized == false){
+    while (m_finalized == false) {
         int32_t state = MtxSafeRead(&m_stMtx, m_s32WorkerState);
         switch (state) {
 
@@ -88,7 +88,7 @@ void QWorker::run() try {
 
 int QWorker::StartWorker(void *param) {
     try {
-        if(IsTerminated()) return 0;
+        if (IsTerminated()) return 0;
 
         if (QThread::isRunning() == false) {
             QThread::start();
@@ -105,7 +105,7 @@ int QWorker::StartWorker(void *param) {
 
 int QWorker::StopWorker() {
     try {
-        if(IsTerminated()) return 0;
+        if (IsTerminated()) return 0;
 
         if (m_poIWorker)
             m_poIWorker->OnRequestWorkerStop();
