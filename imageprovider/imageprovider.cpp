@@ -6,6 +6,10 @@ ImageProvider::ImageProvider() :
     QQuickImageProvider(QQuickImageProvider::Image) {
 }
 
+ImageProvider::~ImageProvider() {
+    for (auto p : m_imagesMap) delete p.second;
+}
+
 QImage *ImageProvider::image(const QString &id) {
     auto p = m_imagesMap.find(id);
     if (p == m_imagesMap.end()) {
