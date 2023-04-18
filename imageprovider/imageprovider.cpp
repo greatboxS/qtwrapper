@@ -32,8 +32,5 @@ QImage ImageProvider::requestImage(const QString &id, QSize *size, const QSize &
     QImage *image = p->second;
     if (size) { *size = QSize(image->width(), image->height()); }
 
-    qDebug() << "requestImage " << id;
-    qDebug() << image->height() << image->width();
-
     return *image;
 }
