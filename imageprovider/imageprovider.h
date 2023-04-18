@@ -11,6 +11,7 @@ class ImageProvider : public QQuickImageProvider
 
 public:
     ImageProvider();
+    ~ImageProvider();
 
     QImage *image(const QString &id);
     QImage *image(const char *id);
