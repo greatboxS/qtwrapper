@@ -92,6 +92,17 @@ public:
             this->active = true;
         }
     }
+
+    void dialAnswer() {
+        if (this->type == CallType::IN_CALL) return;
+
+        if (this->state == CallState::OUTGOING ||
+            this->state == CallState::OUTSECONDCALL) {
+            this->state = CallState::ACTIVE;
+            this->active = true;
+        }
+    }
+
     void switchCall() {
         if (this->state == CallState::ACTIVE) {
             if (level == CallLevel::FIRST_CALL) {
@@ -100,12 +111,14 @@ public:
                 this->state = CallState::HELDNOACTIVE;
             }
             this->active = false;
-        } else if (this->state != CallState::INCOMING &&
-                   this->state != CallState::INSECONDCALL) {
+        } else if (this->state == CallState::INCOMING ||
+                   this->state == CallState::INSECONDCALL ||
+                   this->state == CallState::OUTGOING ||
+                   this->state == CallState::OUTSECONDCALL) {
+            this->active = false;
+        } else {
             this->state = CallState::ACTIVE;
             this->active = true;
-        } else {
-            this->active = false;
         }
     }
     void reject() {
@@ -273,8 +286,16 @@ public:
             }
 
             auto other = getWaitingCall();
+            auto incom = getIncomCall();
             std::unique_lock locker(mtx);
-            if (other) {
+            if (incom) {
+                incom->switchCall();
+                originalCall = incom;
+                originalCall->level = CallLevel::FIRST_CALL;
+                incom->state = CallState::INCOMING;
+                currentState = incom->state;
+                secondCall = NULL;
+            } else if (other) {
                 other->switchCall();
                 originalCall = other;
                 originalCall->level = CallLevel::FIRST_CALL;
@@ -341,9 +362,40 @@ public:
             }
         }
     }
+
+    void pickup(int call) {
+        std::shared_lock locker(mtx);
+        if (call == 1)
+            if (originalCall) {
+                if (originalCall->type == CallType::OUT_CALL) {
+                    if (!originalCall->isActive()) {
+                        originalCall->dialAnswer();
+                        currentState = originalCall->state;
+                        return;
+                    }
+                }
+            }
+        if (call == 2)
+            if (secondCall) {
+                if (secondCall->type == CallType::OUT_CALL) {
+                    if (!secondCall->isActive()) {
+                        secondCall->dialAnswer();
+                        currentState = secondCall->state;
+                    }
+                }
+            }
+    }
+
     void printInfo() {
         std::shared_lock locker(mtx);
         if (originalCall) originalCall->printInfo();
         if (secondCall) secondCall->printInfo();
+    }
+
+    void printHis() {
+        std::shared_lock locker(mtx);
+        for (auto call : calls) {
+            call->printInfo();
+        }
     }
 };
