@@ -87,9 +87,6 @@ public:
     QString getBorderColor() const;
     void setBorderColor(const QString &newBorderColor);
 
-    bool getMirror() const;
-    void setMirror(bool newMirror);
-
     bool getxMirror() const;
     void setxMirror(bool newXMirror);
 
