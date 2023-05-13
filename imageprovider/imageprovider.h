@@ -10,6 +10,7 @@
 
 class ImageProvider : public QQuickImageProvider
 {
+    Q_OBJECT
     std::map<QString, QImage *> m_imagesMap;
 
 private:
@@ -28,29 +29,31 @@ public:
     QImage *image(const QString &id);
     QImage *image(const char *id);
     QImage getImage(const QString &id);
-    void addImage(const char *id, std::string &buf);
-
+    void updateImage(const char *id, const char *buf, size_t size);
+    void updateImage(const char *id, const QString path);
+    void updateImage(const char *id, const QImage &img);
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
+
+signals:
+    void imageChanged(const QString id);
 };
 
 class OpacityImage : public QQuickPaintedItem
 {
     Q_OBJECT
-    Q_PROPERTY(QString source READ getSource WRITE setSource NOTIFY imageChanged)
+    Q_PROPERTY(QString source READ getSource WRITE setSource NOTIFY sourceChanged)
     Q_PROPERTY(qreal radius READ getRadius WRITE setRadius NOTIFY radiusChanged)
     Q_PROPERTY(qreal border READ getBorder WRITE setBorder NOTIFY borderChanged)
     Q_PROPERTY(QString borderColor READ getBorderColor WRITE setBorderColor NOTIFY borderColorChanged)
     Q_PROPERTY(ResizeMode resizemode READ getResizeMode WRITE setResizeMode NOTIFY resizeModeChanged)
-    Q_PROPERTY(QJSValue gradient READ getGradientJSValue WRITE setGradientJSValue NOTIFY gradientChanged)
+    Q_PROPERTY(QJSValue gradient READ getGradientJSValue WRITE setGradientJSValue NOTIFY gradientJSValueChanged)
     Q_PROPERTY(bool xMirror READ getxMirror WRITE setxMirror NOTIFY xMirrorChanged)
     Q_PROPERTY(bool yMirror READ getyMirror WRITE setyMirror NOTIFY yMirrorChanged)
 
 public:
     enum class ResizeMode {
-        AutoResize = 0,
-        AutoSizeByWidth,
-        AutoSizeByHeight,
-        Fitting,
+        Scaled = 0,
+        Fit,
         Fixed,
     };
     Q_ENUM(ResizeMode)
@@ -63,6 +66,10 @@ private:
     QJSValue m_gradientJsValue;
     QVariantMap m_gradientObject;
     QGradient *m_gradient;
+    QLinearGradient m_linearGradient;
+    QRadialGradient m_radialGradient;
+    QConicalGradient m_conicalGradient;
+    int m_updateCount;
 
 public:
     OpacityImage();
@@ -93,6 +100,9 @@ public:
     bool getyMirror() const;
     void setyMirror(bool newYMirror);
 
+public slots:
+    void imageChanged(const QString id);
+
 private:
     void setGradient(const QVariantMap &map);
     qreal m_border;
@@ -101,10 +111,10 @@ private:
     bool m_yMirror;
 
 signals:
-    void imageChanged();
+    void sourceChanged();
     void radiusChanged();
     void resizeModeChanged();
-    void gradientChanged();
+    void gradientJSValueChanged();
     void borderChanged();
     void borderColorChanged();
     void mirrorChanged();

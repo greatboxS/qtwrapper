@@ -10,34 +10,37 @@
 #include <unistd.h>
 #include <QQmlContext>
 #include <QObject>
-
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     auto imageProvider = ImageProvider::instance();
     // read file data into buffer
-    size_t size = 1024 * 100;
+    size_t size = 1024 * 1000;
     char *buffer = new char[size];
 
-    int fd = open("ai-image-enlarger-1-after-2.jpg", O_RDONLY);
-    if (fd == -1) {
-        perror("open");
-        exit(EXIT_FAILURE);
+    const char *images[] = {"image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg"};
+
+    for (int i = 0; i < 4; i++) {
+        qDebug() << "open Image " << images[i];
+        int fd = open(images[i], O_RDONLY);
+        if (fd == -1) {
+            perror("open");
+            exit(EXIT_FAILURE);
+        }
+
+        int bytes_read = read(fd, buffer, size);
+        if (bytes_read == -1) {
+            perror("read");
+            exit(EXIT_FAILURE);
+        }
+
+        qDebug() << "read bytes" << (int)bytes_read;
+        close(fd);
+
+        QByteArray arr(buffer, bytes_read);
+        QString imageStr = "data:image/;base64," + arr.toBase64();
+        std::string buf(buffer, bytes_read);
+        imageProvider->updateImage(images[i], buf.data(), buf.size());
     }
-
-    int bytes_read = read(fd, buffer, size);
-    if (bytes_read == -1) {
-        perror("read");
-        exit(EXIT_FAILURE);
-    }
-
-    qDebug() << "read bytes" << (int)bytes_read;
-
-    QByteArray arr(buffer, bytes_read);
-    QString imageStr = "data:image/;base64," + arr.toBase64();
-    // qDebug() << imageStr;
-
-    std::string buf(buffer, bytes_read);
-    imageProvider->addImage("image1", buf);
 
     qmlRegisterType<OpacityImage>("opacityimage", 1, 0, "OpacityImage");
 
