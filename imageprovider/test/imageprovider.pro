@@ -1,13 +1,16 @@
-QT += quick
+QT += quick core gui
 
 SOURCES += \
         ../imageprovider.cpp \
         main.cpp
-HEADERS += ../imageprovider.h
+
+HEADERS += ../imageprovider.h \
+        CallManager.h
 
 resources.files = main.qml
 resources.prefix = /$${TARGET}
-RESOURCES += resources
+RESOURCES += resources \
+    images.qrc
 
 # Additional import path used to resolve QML modules in Qt Creator's code model
 QML_IMPORT_PATH =
@@ -19,3 +22,10 @@ QML_DESIGNER_IMPORT_PATH =
 qnx: target.path = /tmp/$${TARGET}/bin
 else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
+
+DISTFILES += \
+    image1.jpg \
+    image2.jpg \
+    image3.jpg \
+    image4.jpg \
+    image5.png

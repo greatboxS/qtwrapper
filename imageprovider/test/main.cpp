@@ -17,20 +17,21 @@ int main(int argc, char *argv[]) {
     size_t size = 1024 * 1000;
     char *buffer = new char[size];
 
-    const char *images[] = {"image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg"};
+    const char *images[] = {"image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg", "image5.png"};
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         qDebug() << "open Image " << images[i];
         int fd = open(images[i], O_RDONLY);
         if (fd == -1) {
             perror("open");
-            exit(EXIT_FAILURE);
+            continue;
         }
 
         int bytes_read = read(fd, buffer, size);
         if (bytes_read == -1) {
             perror("read");
-            exit(EXIT_FAILURE);
+            close(fd);
+            continue;
         }
 
         qDebug() << "read bytes" << (int)bytes_read;

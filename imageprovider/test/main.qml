@@ -1,6 +1,7 @@
 import QtQuick 2.0
 import opacityimage 1.0
 import QtQuick.Shapes 1.15
+import QtQuick.Controls 2.0
 
 Window {
     width: 640
@@ -8,9 +9,16 @@ Window {
     visible: true
     title: qsTr("Hello World")
 
-    property var images: ["image1.jpg", "image2.jpg", "image3.jpg", "image4.jpg"]
+    property var images: [
+        "qrc:/image/image1.jpg",
+        "qrc:/image/image2.jpg",
+        "qrc:/image/image3.jpg",
+        "qrc:/image/image4.jpg",
+        "qrc:/image/image5.png"
+    ]
     property int imageIndex: 0
     property string  imageName: images[imageIndex]
+    property double sliderVal: 1
 
     Timer {
         interval: 2000
@@ -18,7 +26,7 @@ Window {
         running: true
         onTriggered: {
             imageIndex ++;
-            if(imageIndex >=4) imageIndex = 0;
+            if(imageIndex >=5) imageIndex = 0;
             imageName = images[imageIndex]
         }
     }
@@ -26,61 +34,70 @@ Window {
     Rectangle {
         // color: "lightblue"
         anchors.fill: parent;
-
-        Text {
-            text: "dfsdfsefsefs"
+        Slider {
+            id: slider
+            anchors.top: imagePannel.bottom
+            value: sliderVal
+            onValueChanged: {
+                console.log(sliderVal);
+                sliderVal = value;
+            }
         }
 
-        Column{
-            spacing: 10
-            OpacityImage {
-                id: img1
-                width: 300
-                height: 300
-                source: imageName
-                radius: 10
-                resizemode: OpacityImage.Fit
-            //   gradient: {
-            //         "type": "linear",
-            //         "Cx": 50.0,
-            //         "Cy": 50.0,
-            //         "Fx": 50.0,
-            //         "Fy": 50.0,
-            //         "fradius": 50.0,
-            //         "cradius": 50.0,
-            //         "angle": 100.0,
-            //         "radius": 100,
-            //         "stops": [
-            //                   { "position": 1.0, "color": "#ff000000" },
-            //                   { "position": 0.5, "color": "#10282828" },
-            //                   { "position": 0.0, "color": "#0f282828" }
-            //               ]
-            //   }
-            }
+        Row {
+            id: imagePannel
+            spacing: 3
+            Repeater {
+                anchors.fill: parent
+                model: 10
+                delegate: Rectangle {
+                    Text {
+                        text: "dfsdfsefsefs"
+                    }
 
-            Item {
-                width: parent.width
-                height: 100
-                clip: true
-                OpacityImage {
-                    id: img2
                     width: 300
-                    height: 300
-                    source: imageName
-                    radius: 10
-                    resizemode: OpacityImage.Fit
-                    xMirror: true
-                    gradient: {
-                        "type": "linear",
-                        "stops": [
-                                    { "position": 0.0, "color": "#ff000000" },
-                                    { "position": 0.2, "color": "#00000000" },
-                                ]
+                    height: 500
+                    Column{
+                        spacing: 10
+                        anchors.fill: parent
+                        OpacityImage {
+                            id: img1
+                            width: 300
+                            height: 300
+                            url: imageName
+                            radius: 10
+                            opacity: sliderVal
+                            resizemode: OpacityImage.Fit
+                        }
+
+                        Item {
+                            width: parent.width
+                            height: 100
+                            clip: true
+                            OpacityImage {
+                                id: img2
+                                width: 300
+                                height: 300
+                                source: imageName
+                                radius: 10
+                                resizemode: OpacityImage.Fit
+                                xMirror: true
+                                gradient: LinearGradient
+                                {
+                                    x1: 0
+                                    y1: 0
+                                    x2: 0
+                                    y2: height
+                                    GradientStop { position: 0.0; color: "#ff000000"}
+                                    GradientStop { position: 0.1; color: "#0f111111"}
+                                    GradientStop { position: 0.3; color: "#03111111"}
+                                    GradientStop { position: 1.0; color: "#00000000"}
+                                }
+                            }
+                        }
                     }
                 }
-
             }
-
         }
     }
 }

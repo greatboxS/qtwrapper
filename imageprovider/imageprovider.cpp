@@ -1,16 +1,19 @@
+/**
+ * @file imageprovider.cpp
+ * @author greatboxs (greatboxs@gmail.com)
+ * @brief
+ * @version 0.1
+ * @date 2023-05-5
+ *
+ * @copyright Copyright (c) 2023
+ *
+ */
+
 #include "imageprovider.h"
-#include <QDebug>
 #include <QPainter>
 #include <QPainterPath>
-#include <QJsonValue>
 #include <QJSValueIterator>
 #include <QReadWriteLock>
-
-#define GRADIENT_TYPE_TEXT     "type"
-#define GRADIENT_STOPS_TEXT    "stops"
-#define GRADIENT_POSITION_TEXT "position"
-#define GRADIENT_COLOR_TEXT    "color"
-#define INITIAL_UPDATE_TRY     100000
 
 #define js_parse_number(value, obj, name)              \
     if (value.property(#name).isNumber()) {            \
@@ -18,7 +21,7 @@
     }
 
 #define js_parse_string(value, obj, name)              \
-    if (value.property(#name).isString()) {            \
+    if (!value.property(#name).isNull()) {             \
         obj[#name] = value.property(#name).toString(); \
     }
 
@@ -26,6 +29,11 @@ static QReadWriteLock sImageProviderLock;
 ImageProvider *ImageProvider::m_instance = NULL;
 int ImageProvider::m_state = -1;
 
+/**
+ * @fn ImageProvider
+ * @brief Construct a new Image Provider:: Image Provider object
+ *
+ */
 ImageProvider::ImageProvider() :
     QQuickImageProvider(QQuickImageProvider::Image) {
 }
@@ -46,7 +54,7 @@ void ImageProvider::destroy() {
     if (m_state == 0) {
         delete ImageProvider::m_instance;
         ImageProvider::m_instance = NULL;
-        m_state = -1;
+        m_state++;
     }
 }
 
@@ -81,14 +89,21 @@ void ImageProvider::updateImage(const char *id, const char *buf, size_t size) {
     emit imageChanged(id);
 }
 
-void ImageProvider::updateImage(const char *id, const QString path) {
+void ImageProvider::updateImage(const char *id, const QString &path) {
     QWriteLocker locker(&sImageProviderLock);
+    QString file = path;
     auto img = this->image(id);
     if (img == NULL) {
         m_imagesMap[id] = new QImage();
         img = m_imagesMap[id];
     }
-    if (img->load(path)) {
+
+    /* Check if the url is passed to remove the qrc:/ prefix */
+    if (file.contains("qrc:/") && file.indexOf("qrc:/") == 0) {
+        file.replace("qrc:/", ":/");
+    }
+
+    if (img->load(file)) {
         emit imageChanged(id);
     }
 }
@@ -117,6 +132,11 @@ QImage ImageProvider::requestImage(const QString &id, QSize *size, const QSize &
     return *image;
 }
 
+/**
+ * @fn OpacityImage
+ * @brief Construct a new Opacity Image:: Opacity Image object
+ *
+ */
 OpacityImage::OpacityImage() :
     m_source(""),
     m_image(NULL),
@@ -127,23 +147,45 @@ OpacityImage::OpacityImage() :
     m_borderColor("black"),
     m_xMirror(false),
     m_yMirror(false),
-    m_updateCount(INITIAL_UPDATE_TRY) {
+    m_url("") {
 
-    auto provider = ImageProvider::instance();
-    QObject::connect(provider, &ImageProvider::imageChanged, this, &OpacityImage::imageChanged, Qt::QueuedConnection);
+    QObject::connect(
+        ImageProvider::instance(), &ImageProvider::imageChanged, this, [this](const QString id) {
+            if (id == getSource()) {
+                m_image = ImageProvider::instance()->getImage(getSource());
+                update();
+            }
+        },
+        Qt::QueuedConnection);
+
+    QObject::connect(this, &OpacityImage::sourceChanged, this, [this]() {
+        m_image = ImageProvider::instance()->getImage(getSource());
+        update();
+    });
+
+    QObject::connect(this, &OpacityImage::urlChanged, this, [this]() {
+        QString url = getURL();
+        if (url.contains("qrc:/") && url.indexOf("qrc:/") == 0) {
+            url.replace("qrc:/", ":/");
+        }
+        m_image = QImage(url);
+        update();
+    });
 }
+
 OpacityImage::~OpacityImage() {
 }
 
 void OpacityImage::paint(QPainter *painter) {
+
+    if (m_image.isNull()) return;
+
     QPainterPath borderPath;
-    auto imageProvider = ImageProvider::instance();
     const qreal radius = this->getRadius();
     const QSizeF dSize = boundingRect().size();
     QColor borderColor(getBorderColor());
     QPen pen(borderColor);
 
-    m_image = imageProvider->getImage(getSource());
     /* set the default value */
     if (m_gradient) {
         if (m_gradient->type() == QGradient::LinearGradient) {
@@ -174,9 +216,11 @@ void OpacityImage::paint(QPainter *painter) {
         m_image.mirror(getyMirror(), getxMirror());
     }
 
+    painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
     borderPath.addRoundedRect(QRectF(QPointF(0, 0), dSize), radius, radius);
     painter->setClipPath(borderPath, Qt::IntersectClip);
+    painter->setCompositionMode(QPainter::CompositionMode_Source);
 
     if (getBorder() <= 0) {
         painter->setPen(Qt::NoPen);
@@ -187,6 +231,37 @@ void OpacityImage::paint(QPainter *painter) {
     }
 
     if (m_gradient) {
+        QImage opacityMask(QSize(dSize.toSize()), QImage::Format_Alpha8);
+        QPainter oPainter(&opacityMask);
+        QImage resultImage(dSize.toSize(), QImage::Format_ARGB32_Premultiplied);
+        QPainter iPainter(&resultImage);
+
+        oPainter.setCompositionMode(QPainter::CompositionMode_Source);
+        if (m_gradient->type() == QGradient::LinearGradient) {
+            oPainter.fillRect(opacityMask.rect(), m_linearGradient);
+        } else if (m_gradient->type() == QGradient::RadialGradient) {
+            oPainter.fillRect(opacityMask.rect(), m_radialGradient);
+        } else if (m_gradient->type() == QGradient::ConicalGradient) {
+            oPainter.fillRect(opacityMask.rect(), m_conicalGradient);
+        } else {
+        }
+        oPainter.end();
+
+        iPainter.setCompositionMode(QPainter::CompositionMode_Source);
+        iPainter.fillRect(resultImage.rect(), Qt::transparent);
+        iPainter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        iPainter.drawImage(0, 0, opacityMask);
+        iPainter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+        iPainter.drawImage(0, 0, m_image);
+        iPainter.end();
+
+        painter->drawImage(0, 0, resultImage);
+    } else {
+        painter->drawImage(0, 0, m_image);
+    }
+
+    if (m_gradient) {
+        painter->setCompositionMode(QPainter::CompositionMode_SourceAtop);
         if (m_gradient->type() == QGradient::LinearGradient) {
             painter->fillRect(boundingRect(), m_linearGradient);
         } else if (m_gradient->type() == QGradient::RadialGradient) {
@@ -195,61 +270,12 @@ void OpacityImage::paint(QPainter *painter) {
             painter->fillRect(boundingRect(), m_conicalGradient);
         }
     }
-
-    if (m_gradient) {
-        QImage opacityMask(QSize(dSize.width(), dSize.height()), QImage::Format_Alpha8);
-        QPainter opacityPainter(&opacityMask);
-        QImage outputImage(QSize(dSize.width(), dSize.height()), QImage::Format_ARGB32);
-        QPainter gradientPainter(&outputImage);
-        QPixmap opacityPixmap = QPixmap::fromImage(opacityMask);
-
-        if (m_gradient->type() == QGradient::LinearGradient)
-            opacityPainter.fillRect(opacityMask.rect(), m_linearGradient);
-        else if (m_gradient->type() == QGradient::RadialGradient)
-            opacityPainter.fillRect(opacityMask.rect(), m_radialGradient);
-        else if (m_gradient->type() == QGradient::ConicalGradient)
-            opacityPainter.fillRect(opacityMask.rect(), m_conicalGradient);
-
-        opacityPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        opacityPainter.drawImage(opacityMask.rect(), opacityMask.createAlphaMask());
-        opacityPainter.setCompositionMode(QPainter::CompositionMode_DestinationOver);
-        opacityPainter.drawImage(opacityMask.rect(), opacityMask);
-
-        outputImage.fill(Qt::transparent);
-        gradientPainter.setCompositionMode(QPainter::CompositionMode_Source);
-        gradientPainter.drawImage(0, 0, m_image);
-        gradientPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-
-        if (m_gradient->type() == QGradient::LinearGradient)
-            gradientPainter.fillRect(outputImage.rect(), m_linearGradient);
-        else if (m_gradient->type() == QGradient::RadialGradient)
-            gradientPainter.fillRect(outputImage.rect(), m_radialGradient);
-        else if (m_gradient->type() == QGradient::ConicalGradient)
-            gradientPainter.fillRect(outputImage.rect(), m_conicalGradient);
-
-        gradientPainter.setBackgroundMode(Qt::BGMode::TransparentMode);
-        gradientPainter.setCompositionMode(QPainter::CompositionMode_DestinationIn);
-        gradientPainter.drawPixmap(0, 0, opacityPixmap);
-
-        opacityPainter.end();
-        gradientPainter.end();
-
-        painter->setCompositionMode(QPainter::CompositionMode_DestinationAtop);
-        painter->drawImage(0, 0, outputImage);
-
-        if (m_updateCount > 0) {
-            m_updateCount--;
-            update();
-        }
-    } else {
-        painter->drawImage(0, 0, m_image);
-    }
+    painter->restore();
 }
 
 void OpacityImage::setSource(const QString image) {
     if (m_source == image) return;
     m_source = image;
-    update();
     emit sourceChanged();
 }
 
@@ -269,57 +295,71 @@ void OpacityImage::setResizeMode(ResizeMode newResizemode) {
 
 void OpacityImage::setGradientJSValue(QJSValue &value) {
     m_gradient = NULL;
+    if (!value.isObject() || value.isNull()) return;
     if (m_gradientJsValue.equals(value)) return;
-    if (!value.isObject()) return;
 
     QJSValue prop;
     QVariantList stopsList;
     m_gradientJsValue = value;
     m_gradientObject.clear();
 
-    m_gradientObject["type"] = "linear";
-    js_parse_string(value, m_gradientObject, type);
-    auto type = m_gradientObject["type"].toString();
+    /* Indicate what type of gradient it is*/
+    js_parse_number(value, m_gradientObject, angle);
+    js_parse_number(value, m_gradientObject, focalX);
+    js_parse_number(value, m_gradientObject, x1);
+    if (m_gradientObject.find("angle") != m_gradientObject.end()) {
+        m_gradientObject["type"] = QGradient::Type::ConicalGradient;
+    } else if (m_gradientObject.find("focalX") != m_gradientObject.end()) {
+        m_gradientObject["type"] = QGradient::Type::RadialGradient;
+    } else if (m_gradientObject.find("x1") != m_gradientObject.end()) {
+        m_gradientObject["type"] = QGradient::Type::LinearGradient;
+    } else {
+        m_gradientObject["type"] = QGradient::Type::LinearGradient;
+    }
 
+    QGradient::Type type = static_cast<QGradient::Type>(m_gradientObject["type"].toInt());
     /* linear gradient props*/
-    m_gradientObject["xStart"] = 0.0;
-    m_gradientObject["xStop"] = 0.0;
-    m_gradientObject["yStart"] = 0.0;
-    m_gradientObject["yStop"] = 0.0;
+    m_gradientObject["x1"] = 0.0;
+    m_gradientObject["y1"] = 0.0;
+    m_gradientObject["x2"] = 0.0;
+    m_gradientObject["y2"] = 0.0;
     /* radial gradient props*/
-    m_gradientObject["Cx"] = 0.0;
-    m_gradientObject["Cy"] = 0.0;
-    m_gradientObject["Fx"] = 0.0;
-    m_gradientObject["Fy"] = 0.0;
-    m_gradientObject["cradius"] = 0.0;
-    m_gradientObject["fradius"] = 0.0;
+    m_gradientObject["centerX"] = 0.0;
+    m_gradientObject["centerY"] = 0.0;
+    m_gradientObject["focalX"] = 0.0;
+    m_gradientObject["focalY"] = 0.0;
+    m_gradientObject["centerRadius"] = 0.0;
+    m_gradientObject["focalRadius"] = 0.0;
     /* conical gradient props*/
-    m_gradientObject["Cx"] = 0.0;
-    m_gradientObject["Cy"] = 0.0;
+    m_gradientObject["centerX"] = 0.0;
+    m_gradientObject["centerY"] = 0.0;
     m_gradientObject["angle"] = 0.0;
 
-    if (type == "linear") {
-        js_parse_number(value, m_gradientObject, xStart);
-        js_parse_number(value, m_gradientObject, yStart);
-        js_parse_number(value, m_gradientObject, xStop);
-        js_parse_number(value, m_gradientObject, yStop);
-    } else if (type == "radial") {
+    m_gradientObject["spread"] = 0.0;
+    m_gradientObject["orientation"] = 0.0;
+    js_parse_number(value, m_gradientObject, spread);
+    js_parse_number(value, m_gradientObject, orientation);
 
-        js_parse_number(value, m_gradientObject, Cx);
-        js_parse_number(value, m_gradientObject, Cy);
-        js_parse_number(value, m_gradientObject, Fx);
-        js_parse_number(value, m_gradientObject, Fy);
-        js_parse_number(value, m_gradientObject, fradius);
-        js_parse_number(value, m_gradientObject, cradius);
-        js_parse_number(value, m_gradientObject, radius);
-    } else if (type == "conical") {
-        js_parse_number(value, m_gradientObject, Cx);
-        js_parse_number(value, m_gradientObject, Cy);
+    if (type == QGradient::LinearGradient) {
+        js_parse_number(value, m_gradientObject, x1);
+        js_parse_number(value, m_gradientObject, y1);
+        js_parse_number(value, m_gradientObject, x2);
+        js_parse_number(value, m_gradientObject, y2);
+    } else if (type == QGradient::RadialGradient) {
+        js_parse_number(value, m_gradientObject, centerX);
+        js_parse_number(value, m_gradientObject, centerY);
+        js_parse_number(value, m_gradientObject, focalX);
+        js_parse_number(value, m_gradientObject, focalY);
+        js_parse_number(value, m_gradientObject, focalRadius);
+        js_parse_number(value, m_gradientObject, centerRadius);
+    } else if (type == QGradient::ConicalGradient) {
+        js_parse_number(value, m_gradientObject, centerX);
+        js_parse_number(value, m_gradientObject, centerY);
         js_parse_number(value, m_gradientObject, angle);
     } else {
     }
 
-    prop = value.property(GRADIENT_STOPS_TEXT);
+    prop = value.property("stops");
     if (prop.isArray()) {
         int length = prop.property("length").toInt();
         for (int i = 0; i < length; i++) {
@@ -331,7 +371,20 @@ void OpacityImage::setGradientJSValue(QJSValue &value) {
                 stopsList.append(stopMap);
             }
         }
-        m_gradientObject[GRADIENT_STOPS_TEXT] = stopsList;
+        m_gradientObject["stops"] = stopsList;
+    } else {
+        QJSValueIterator it(prop);
+        while (it.hasNext()) {
+            it.next();
+            QJSValue stopValue = it.value();
+            QVariantMap stopMap;
+            if (stopValue.isObject()) {
+                js_parse_number(stopValue, stopMap, position);
+                js_parse_string(stopValue, stopMap, color);
+                stopsList.append(stopMap);
+            }
+        }
+        m_gradientObject["stops"] = stopsList;
     }
     setGradient(m_gradientObject);
     update();
@@ -340,31 +393,31 @@ void OpacityImage::setGradientJSValue(QJSValue &value) {
 
 void OpacityImage::setGradient(const QVariantMap &map) {
 
-    QString typeStr = map[GRADIENT_TYPE_TEXT].toString();
-    QVariantList stopsList = map[GRADIENT_STOPS_TEXT].toList();
-    QGradient::Type type = (typeStr == "conical" ? QGradient::Type::ConicalGradient
-                                                 : (typeStr == "radial" ? QGradient::Type::RadialGradient
-                                                                        : QGradient::Type::LinearGradient));
+    QVariantList stopsList = map["stops"].toList();
+    QGradient::Type type = static_cast<QGradient::Type>(map["type"].toInt());
     switch (type) {
     case QGradient::LinearGradient: {
-        QPointF startP(map["xStart"].toDouble(), map["yStart"].toDouble());
-        QPointF stopP(map["xStop"].toDouble(), map["yStop"].toDouble());
+        QPointF startP(map["x1"].toDouble(), map["y1"].toDouble());
+        QPointF stopP(map["x2"].toDouble(), map["y2"].toDouble());
         m_linearGradient.setStart(startP);
         m_linearGradient.setFinalStop(stopP);
         m_gradient = &m_linearGradient;
     } break;
     case QGradient::RadialGradient: {
-        QPointF cP(map["Cx"].toDouble(), map["Cy"].toDouble());
-        QPointF fP(map["Fx"].toDouble(), map["Fy"].toDouble());
-        qreal cradius = map["cradius"].toDouble();
-        qreal fradius = map["fradius"].toDouble();
-        qreal radius = map["radius"].toDouble();
-        m_radialGradient = QRadialGradient(cP, cradius, fP, fradius);
-        m_radialGradient.setRadius(radius);
+        QPointF cp(map["centerX"].toDouble(), map["centerY"].toDouble());
+        QPointF fp(map["focalX"].toDouble(), map["focalY"].toDouble());
+        qreal centerRadius = map["centerRadius"].toDouble();
+        qreal focalRadius = map["focalRadius"].toDouble();
+
+        if (focalRadius != 0)
+            m_radialGradient = QRadialGradient(cp, centerRadius, fp, focalRadius);
+        else
+            m_radialGradient = QRadialGradient(cp, centerRadius);
+
         m_gradient = &m_radialGradient;
     } break;
     case QGradient::ConicalGradient: {
-        QPointF cP(map["Cx"].toDouble(), map["Cy"].toDouble());
+        QPointF cP(map["centerX"].toDouble(), map["centerY"].toDouble());
         m_conicalGradient.setCenter(cP);
         m_conicalGradient.setAngle(map["angle"].toDouble());
         m_gradient = &m_conicalGradient;
@@ -373,6 +426,7 @@ void OpacityImage::setGradient(const QVariantMap &map) {
         break;
     }
 
+    m_gradient->setCoordinateMode(QGradient::LogicalMode);
     for (auto stopVariant : stopsList) {
         QVariantMap stopMap = stopVariant.toMap();
         double position = stopMap["position"].toDouble();
@@ -382,9 +436,7 @@ void OpacityImage::setGradient(const QVariantMap &map) {
     }
 }
 
-qreal OpacityImage::getBorder() const {
-    return m_border;
-}
+qreal OpacityImage::getBorder() const { return m_border; }
 
 void OpacityImage::setBorder(qreal newBorder) {
     if (qFuzzyCompare(m_border, newBorder))
@@ -394,9 +446,7 @@ void OpacityImage::setBorder(qreal newBorder) {
     emit borderChanged();
 }
 
-QString OpacityImage::getBorderColor() const {
-    return m_borderColor;
-}
+QString OpacityImage::getBorderColor() const { return m_borderColor; }
 
 void OpacityImage::setBorderColor(const QString &newBorderColor) {
     if (m_borderColor == newBorderColor)
@@ -406,9 +456,7 @@ void OpacityImage::setBorderColor(const QString &newBorderColor) {
     emit borderColorChanged();
 }
 
-bool OpacityImage::getxMirror() const {
-    return m_xMirror;
-}
+bool OpacityImage::getxMirror() const { return m_xMirror; }
 
 void OpacityImage::setxMirror(bool newXMirror) {
     if (m_xMirror == newXMirror)
@@ -418,9 +466,7 @@ void OpacityImage::setxMirror(bool newXMirror) {
     emit xMirrorChanged();
 }
 
-bool OpacityImage::getyMirror() const {
-    return m_yMirror;
-}
+bool OpacityImage::getyMirror() const { return m_yMirror; }
 
 void OpacityImage::setyMirror(bool newYMirror) {
     if (m_yMirror == newYMirror)
@@ -430,8 +476,11 @@ void OpacityImage::setyMirror(bool newYMirror) {
     emit yMirrorChanged();
 }
 
-void OpacityImage::imageChanged(const QString id) {
-    if (id == getSource()) {
-        update();
-    }
+QString OpacityImage::getURL() const { return m_url; }
+
+void OpacityImage::setURL(const QString &newUrl) {
+    if (m_url == newUrl)
+        return;
+    m_url = newUrl;
+    emit urlChanged();
 }

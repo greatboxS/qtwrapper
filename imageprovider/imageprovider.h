@@ -1,3 +1,14 @@
+/**
+ * @file imageprovider.h
+ * @author greatboxs (greatboxs@gmail.com)
+ * @brief
+ * @version 0.1
+ * @date 2023-05-5
+ *
+ * @copyright Copyright (c) 2023
+ *
+ */
+
 #ifndef __IMAGEPROVIDER_H__
 #define __IMAGEPROVIDER_H__
 
@@ -6,8 +17,12 @@
 #include <QGradient>
 #include <QImage>
 #include <map>
-#include <memory>
 
+/**
+ * @fn ImageProvider
+ * @brief 
+ * 
+ */
 class ImageProvider : public QQuickImageProvider
 {
     Q_OBJECT
@@ -28,20 +43,63 @@ public:
     void destroy();
     QImage *image(const QString &id);
     QImage *image(const char *id);
+
+    /**
+     * @fn getImage
+     * @brief Get the Image object
+     *
+     * @param id    Image id (this value is mapping with "source" in qml)
+     * @return QImage
+     */
     QImage getImage(const QString &id);
+
+    /**
+     * @fn updateImage
+     * @brief Add if not exists or update the current image in provider resource
+     *
+     * @param id    Image id (this value is mapping with "source" in qml)
+     * @param buf   Image binary data
+     * @param size  Image size
+     */
     void updateImage(const char *id, const char *buf, size_t size);
-    void updateImage(const char *id, const QString path);
+
+    /**
+     * @fn updateImage
+     * @brief
+     *
+     * @param id    Image id (this value is mapping with "source" in qml)
+     * @param path  Image file path (note: "qrc:/" prefix is replaced with ":/")
+     */
+    void updateImage(const char *id, const QString &path);
+
+    /**
+     * @fn updateImage
+     * @brief
+     *
+     * @param id    Image id (this value is mapping with "source" in qml)
+     * @param img   Image object to copy from
+     */
     void updateImage(const char *id, const QImage &img);
+
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
 
 signals:
     void imageChanged(const QString id);
 };
 
+/**
+ * @fn OpacityImage
+ * @brief A simple opacity mask image using QQuickPaintedItem to handle the painting job.
+ * Users can register OpacityImage to the QML engine and use it in a QML file.
+ * The image is provided by the ImageProvider or from a resource URL.
+ * Users have to set the "source" (works with ImageProvider) or "url" in the QML file.
+ * Currently, OpacityImage supports LinearGradient (Gradient), RadialGradient, and ConicalGradient.
+ */
 class OpacityImage : public QQuickPaintedItem
 {
     Q_OBJECT
     Q_PROPERTY(QString source READ getSource WRITE setSource NOTIFY sourceChanged)
+    Q_PROPERTY(QString url READ getURL WRITE setURL NOTIFY urlChanged)
     Q_PROPERTY(qreal radius READ getRadius WRITE setRadius NOTIFY radiusChanged)
     Q_PROPERTY(qreal border READ getBorder WRITE setBorder NOTIFY borderChanged)
     Q_PROPERTY(QString borderColor READ getBorderColor WRITE setBorderColor NOTIFY borderColorChanged)
@@ -69,7 +127,6 @@ private:
     QLinearGradient m_linearGradient;
     QRadialGradient m_radialGradient;
     QConicalGradient m_conicalGradient;
-    int m_updateCount;
 
 public:
     OpacityImage();
@@ -100,8 +157,8 @@ public:
     bool getyMirror() const;
     void setyMirror(bool newYMirror);
 
-public slots:
-    void imageChanged(const QString id);
+    QString getURL() const;
+    void setURL(const QString &newUrl);
 
 private:
     void setGradient(const QVariantMap &map);
@@ -109,6 +166,7 @@ private:
     QString m_borderColor;
     bool m_xMirror;
     bool m_yMirror;
+    QString m_url;
 
 signals:
     void sourceChanged();
@@ -120,5 +178,6 @@ signals:
     void mirrorChanged();
     void xMirrorChanged();
     void yMirrorChanged();
+    void urlChanged();
 };
 #endif // __IMAGEPROVIDER_H__
