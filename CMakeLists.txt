@@ -10,8 +10,9 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_SOURCE_DIR}/worker/*.cpp
      ${CMAKE_CURRENT_SOURCE_DIR}/imageprovider/*.cpp
 )
 
-file(GLOB PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/mutexsafe/*.h
-     ${CMAKE_CURRENT_SOURCE_DIR}/imageprovider/*.h ${CMAKE_CURRENT_SOURCE_DIR}/logger/*.h
+file(GLOB PUBLIC_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/worker/*.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/mutexsafe/*.h ${CMAKE_CURRENT_SOURCE_DIR}/logger/*.h
+     ${CMAKE_CURRENT_SOURCE_DIR}/imageprovider/*.h
 )
 
 option(QT5_BUILD "Build wrapper for qt5" ON)
