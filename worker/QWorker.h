@@ -63,9 +63,10 @@ namespace qtwrapper
         int IsRunning();
         int IsTerminated();
 
-        virtual int TerminateWorker(unsigned long wait);
-        virtual int StartWorker(void *param = NULL);
-        virtual int StopWorker();
+        int TerminateWorker(unsigned long wait);
+        int StartWorker(void *param = NULL);
+        int StopWorker();
+        int JoinWorker();
     };
 };     // namespace qtwrapper
 #endif // __QWORKER_H__

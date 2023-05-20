@@ -123,4 +123,8 @@ namespace qtwrapper
         } catch (std::exception &exp) {}
         return 0;
     }
+
+    int QWorker::JoinWorker() {
+        return QThread::wait() == true;
+    }
 } // namespace qtwrapper
