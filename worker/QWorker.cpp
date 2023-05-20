@@ -40,6 +40,9 @@ int QWorker::TerminateWorker(unsigned long wait) {
     if (QThread::isRunning()) {
         StopWorker();
         MtxSafeWrite(&m_stMtx, m_finalized, true);
+        QThread::requestInterruption();
+        while (!QThread::isInterruptionRequested())
+            ;
         QThread::terminate();
         QThread::wait(wait);
     }
@@ -74,6 +77,9 @@ void QWorker::run() try {
 
         case WORKER_PRE_EXIT:
             MtxSafeWrite(&m_stMtx, m_s32WorkerState, static_cast<int32_t>(WORKER_EXIT_DONE));
+            if (m_poIWorker)
+                if (m_poIWorker->OnWorkerTerminate() < 0) {
+                }
             break;
 
         case WORKER_EXIT_DONE:

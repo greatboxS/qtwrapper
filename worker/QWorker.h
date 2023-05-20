@@ -15,6 +15,7 @@ class IWorker
 protected:
     virtual int OnWorkerInitialize() = 0;
     virtual int OnWorkerFinalize() = 0;
+    virtual int OnWorkerTerminate() = 0;
     virtual int OnWorkerRun(void *param) = 0;
 
 public:
