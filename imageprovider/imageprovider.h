@@ -20,8 +20,8 @@
 
 /**
  * @fn ImageProvider
- * @brief 
- * 
+ * @brief
+ *
  */
 class ImageProvider : public QQuickImageProvider
 {

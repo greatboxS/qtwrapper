@@ -1,5 +1,5 @@
 #include "QWorker.h"
-#include "../mutexsafe/MutexSafe.h"
+#include "../mutexsafe/mutexsafe.h"
 #include <exception>
 #include <QDebug>
 
