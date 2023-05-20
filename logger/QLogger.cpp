@@ -1,4 +1,4 @@
-#include "QLogger.hpp"
+#include "QLogger.h"
 #include <string.h>
 
 namespace qtwrapper
